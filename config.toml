@@ -1,0 +1,23 @@
+[metadata]
+name = "Mini Image Resizer"
+version = "1.0.0"
+author = "Your Name"
+
+[build]
+host = "python"
+entry_point = "main.py"
+
+[requirements]
+pillow = ">=12.0"
+PyQt6 = ">=6.0"
+
+[gui]
+window_title = "Mini Image Resizer"
+window_size = "1000x600"
+icon = "app_icon.ico"
+
+[features]
+image_formats = [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".webp"]
+output_formats = ["webp", "jpeg", "png"]
+resize_method = "LANCZOS"
+quality = 50
