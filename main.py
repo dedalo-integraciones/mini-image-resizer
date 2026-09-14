@@ -261,6 +261,13 @@ class ImageResizerApp:
         subtitle = tk.Label(frame, text="Batch image resizing with WebP optimization", font=('Segoe UI', 10), bg=COLORS['bg_primary'], fg=COLORS['text_secondary'])
         subtitle.pack(pady=(0, 10))
         
+        # Clear session images button
+        clear_btn = tk.Button(frame, text="Clear Session", command=self.clear_images,
+                               bg=COLORS['warning'], fg=COLORS['text_primary'], font=('Segoe UI', 9, 'bold'),
+                               activebackground=COLORS['accent_hover'], activeforeground=COLORS['text_primary'],
+                               relief='flat', padx=8, pady=4, cursor='hand2')
+        clear_btn.pack(pady=(0, 10))
+        
         # Select button
         select_btn = tk.Button(frame, text="Select Images", command=self.select_images, 
                                bg=COLORS['accent'], fg=COLORS['text_primary'], font=('Segoe UI', 10, 'bold'),
@@ -443,6 +450,41 @@ class ImageResizerApp:
         if directory:
             self.output_path = directory
             self.location_var.set(directory)
+
+    def clear_images(self):
+        """Clear all images from the session and reset the UI."""
+        if not self.images and (not hasattr(self, 'worker') or not self.worker or not self.worker.is_alive()):
+            messagebox.showinfo("Session Empty", "There are no images in the current session to clear.")
+            return
+
+        if hasattr(self, 'worker') and self.worker and self.worker.is_alive():
+            messagebox.showwarning(
+                "Processing in Progress",
+                "Image processing is currently running.\n"
+                "Clear the session after processing finishes to avoid inconsistent state."
+            )
+            return
+
+        if not messagebox.askyesno(
+            "Clear Session Images",
+            "This will remove all loaded and processed images from the session.\n"
+            "Do you want to continue?"
+        ):
+            return
+
+        self.images.clear()
+        self.image_listbox.delete(0, 'end')
+        self.output_path = None
+        self.location_var.set("Will use source folder")
+        self.current_preview_path = None
+        self.preview_canvas.delete("all")
+        self.original_info.config(text="Original: -")
+        self.new_info.config(text="New: -")
+        self.filesize_info.config(text="File Size: -")
+        self.progress_var.set(0)
+        self.process_btn.config(state='disabled')
+        self.status_var.set("Ready")
+        self.status_label.config(fg=COLORS['text_secondary'])
             
     def on_image_selected(self, event):
         """Handle image selection from list"""
