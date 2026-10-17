@@ -1,1 +1,4 @@
 .opencode
+.dist
+*.bat
+*.ba_

@@ -7,6 +7,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
+from batch_resize import calculate_target_dimensions
 
 
 DARK_COLORS = {
@@ -71,12 +72,14 @@ def resource_path(relative_path):
 class ImageResizeWorker(threading.Thread):
     """Worker thread for processing multiple images"""
     
-    def __init__(self, file_paths, output_path, target_width, target_height, prefix="", preferred_format="webp", quality=50, callback=None):
+    def __init__(self, file_paths, output_path, target_width, target_height, prefix="", preferred_format="webp", quality=50, callback=None, size_mode="fixed", percentage=100):
         super().__init__()
         self.file_paths = file_paths
         self.output_path = output_path
         self.target_width = target_width
         self.target_height = target_height
+        self.size_mode = size_mode
+        self.percentage = percentage
         self.prefix = prefix
         self.preferred_format = preferred_format
         self.quality = quality
@@ -116,22 +119,10 @@ class ImageResizeWorker(threading.Thread):
             if original_width <= 0 or original_height <= 0:
                 raise ValueError(f"Input image has invalid dimensions: {original_width}x{original_height}")
             
-            # Calculate target dimensions
-            if self.target_width == 0 and self.target_height == 0:
-                target_width = original_width
-                target_height = original_height
-            else:
-                if self.target_width == 0:
-                    target_width = int(self.target_height * original_width / original_height)
-                elif self.target_height == 0:
-                    target_height = int(self.target_width * original_height / original_width)
-                else:
-                    target_width = self.target_width
-                    target_height = self.target_height
-            
-            # Validate target dimensions are positive
-            if target_width <= 0 or target_height <= 0:
-                raise ValueError(f"Calculated target dimensions are invalid: {target_width}x{target_height}")
+            target_width, target_height = calculate_target_dimensions(
+                original_width, original_height, self.target_width, self.target_height,
+                self.size_mode, self.percentage
+            )
             
             # Resize using high-quality LANCZOS resampling
             resized_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
@@ -307,8 +298,24 @@ class ImageResizerApp:
         size_frame = tk.LabelFrame(frame, text="Target Size", font=('Segoe UI', 10, 'bold'), bg=COLORS['bg_panel'], fg=COLORS['text_primary'], bd=1, relief='solid')
         size_frame.pack(fill='x', pady=(0, 10))
         
+        mode_frame = tk.Frame(size_frame, bg=COLORS['bg_panel'])
+        mode_frame.pack(fill='x', padx=5, pady=5)
+        tk.Label(mode_frame, text="Mode:", width=10, anchor='w', bg=COLORS['bg_panel'], fg=COLORS['text_secondary']).pack(side='left')
+        self.size_mode_var = tk.StringVar(value='fixed')
+        for label, value in (("Fixed size", "fixed"), ("Percentage", "percentage")):
+            tk.Radiobutton(
+                mode_frame, text=label, value=value, variable=self.size_mode_var,
+                command=self.update_size_mode, indicatoron=False, width=12,
+                bg=COLORS['bg_card'], fg=COLORS['text_primary'], selectcolor=COLORS['accent'],
+                activebackground=COLORS['accent_hover'], activeforeground=COLORS['text_primary'],
+                relief='flat', padx=4, pady=3
+            ).pack(side='left', padx=(0, 5))
+
+        self.fixed_size_frame = tk.Frame(size_frame, bg=COLORS['bg_panel'])
+        self.fixed_size_frame.pack(fill='x')
+
         # Width input
-        width_frame = tk.Frame(size_frame, bg=COLORS['bg_panel'])
+        width_frame = tk.Frame(self.fixed_size_frame, bg=COLORS['bg_panel'])
         width_frame.pack(fill='x', padx=5, pady=5)
         tk.Label(width_frame, text="Width:", width=10, bg=COLORS['bg_panel'], fg=COLORS['text_secondary']).pack(side='left')
         self.width_var = tk.IntVar(value=0)
@@ -319,7 +326,7 @@ class ImageResizerApp:
         tk.Label(width_frame, text="px", bg=COLORS['bg_panel'], fg=COLORS['text_muted']).pack(side='left')
         
         # Height input
-        height_frame = tk.Frame(size_frame, bg=COLORS['bg_panel'])
+        height_frame = tk.Frame(self.fixed_size_frame, bg=COLORS['bg_panel'])
         height_frame.pack(fill='x', padx=5, pady=5)
         tk.Label(height_frame, text="Height:", width=10, bg=COLORS['bg_panel'], fg=COLORS['text_secondary']).pack(side='left')
         self.height_var = tk.IntVar(value=0)
@@ -328,6 +335,22 @@ class ImageResizerApp:
                                  relief='flat', highlightthickness=1, highlightbackground=COLORS['border'])
         height_spin.pack(side='left', padx=(0, 10))
         tk.Label(height_frame, text="px", bg=COLORS['bg_panel'], fg=COLORS['text_muted']).pack(side='left')
+
+        self.percentage_frame = tk.Frame(size_frame, bg=COLORS['bg_panel'])
+        tk.Label(
+            self.percentage_frame, text="Scale:", width=10, anchor='w',
+            bg=COLORS['bg_panel'], fg=COLORS['text_secondary']
+        ).pack(side='left', padx=(5, 0), pady=5)
+        self.percentage_var = tk.IntVar(value=100)
+        tk.Spinbox(
+            self.percentage_frame, from_=-199, to=10000, textvariable=self.percentage_var, width=10,
+            bg=COLORS['bg_card'], fg=COLORS['text_primary'], buttonbackground=COLORS['bg_card'],
+            relief='flat', highlightthickness=1, highlightbackground=COLORS['border']
+        ).pack(side='left', padx=(0, 8), pady=5)
+        tk.Label(
+            self.percentage_frame, text="%  (100 = original, 150 = +50%, -150 = -50%)",
+            bg=COLORS['bg_panel'], fg=COLORS['text_muted']
+        ).pack(side='left', pady=5)
         
         # Prefix input
         prefix_frame = tk.Frame(size_frame, bg=COLORS['bg_panel'])
@@ -421,6 +444,16 @@ class ImageResizerApp:
         self.status_label.pack(anchor='w', padx=5, pady=(10, 0))
         
         return frame
+
+    def update_size_mode(self):
+        if self.size_mode_var.get() == 'percentage':
+            self.fixed_size_frame.pack_forget()
+            self.percentage_frame.pack(fill='x', before=self.prefix_entry.master)
+        else:
+            self.percentage_frame.pack_forget()
+            self.fixed_size_frame.pack(fill='x', before=self.prefix_entry.master)
+        if self.current_preview_path:
+            self.update_image_info(self.current_preview_path)
         
     def select_images(self):
         """Open file dialog to select images"""
@@ -537,22 +570,13 @@ class ImageResizerApp:
                 original_width, original_height = img.size
                 self.original_info.config(text=f"Original: {original_width} x {original_height}")
                 
-                # Calculate new size based on inputs
+                # Calculate new size using the same rules as the processing worker.
                 target_width = self.width_var.get()
                 target_height = self.height_var.get()
-                
-                if target_width == 0 and target_height == 0:
-                    new_width = original_width
-                    new_height = original_height
-                elif target_width == 0:
-                    new_width = int(target_height * original_width / original_height)
-                    new_height = target_height
-                elif target_height == 0:
-                    new_width = target_width
-                    new_height = int(target_width * original_height / original_width)
-                else:
-                    new_width = target_width
-                    new_height = target_height
+                new_width, new_height = calculate_target_dimensions(
+                    original_width, original_height, target_width, target_height,
+                    self.size_mode_var.get(), self.percentage_var.get()
+                )
                 
                 self.new_info.config(text=f"New: {new_width} x {new_height}")
                 
@@ -573,18 +597,24 @@ class ImageResizerApp:
             
         target_width = self.width_var.get()
         target_height = self.height_var.get()
+        size_mode = self.size_mode_var.get()
+        percentage = self.percentage_var.get()
         prefix = self.prefix_var.get().strip()
         output_format = self.format_var.get()
         quality = self.quality_var.get()
         
         # Validate target size is not 0,0
-        if target_width == 0 and target_height == 0:
+        if size_mode == 'fixed' and target_width == 0 and target_height == 0:
             messagebox.showerror("Invalid Size", "Target size cannot be 0 x 0. Please enter a width or height greater than 0.")
             return
         
         # Validate target dimensions are positive
-        if target_width < 0 or target_height < 0:
+        if size_mode == 'fixed' and (target_width < 0 or target_height < 0):
             messagebox.showerror("Invalid Size", "Target width and height must be greater than or equal to 0.")
+            return
+
+        if size_mode == 'percentage' and percentage <= -200:
+            messagebox.showerror("Invalid Size", "Percentage must be greater than -200.")
             return
         
         # Check if prefix is empty - warn about overwriting existing files
@@ -604,11 +634,16 @@ class ImageResizerApp:
         if not save_location:
             save_location = str(Path(self.images[0]).parent)
         
+        target_description = (
+            f"{percentage}% scale" if size_mode == 'percentage'
+            else f"{target_width if target_width else 'Auto'} x {target_height if target_height else 'Auto'} px"
+        )
+
         # Confirm before processing
         reply = messagebox.askyesno(
             "Confirm Processing",
             f"Process {len(self.images)} image(s)?\n\n"
-            f"Target Size: {target_width if target_width else 'Original'} x {target_height if target_height else 'Original'}\n"
+            f"Target Size: {target_description}\n"
             f"Format: {output_format.upper()}\n"
             f"Prefix: {prefix if prefix else 'None'}\n"
             f"Compression Level: {quality} (0-100, 50=balanced)\n"
@@ -679,7 +714,9 @@ class ImageResizerApp:
                 prefix,
                 output_format,
                 quality,
-                callback=update_progress
+                callback=update_progress,
+                size_mode=size_mode,
+                percentage=percentage
             )
             self.worker.start()
 

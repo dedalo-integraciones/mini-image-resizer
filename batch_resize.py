@@ -7,7 +7,44 @@ from pathlib import Path
 from PIL import Image
 
 
-def resize_image(input_path, output_path, target_width, target_height, prefix="", preferred_format="webp", quality=50):
+def calculate_target_dimensions(original_width, original_height, target_width=0, target_height=0, size_mode="fixed", percentage=100):
+    """Calculate output dimensions while preserving aspect ratio in percentage mode."""
+    if original_width <= 0 or original_height <= 0:
+        raise ValueError(f"Input image has invalid dimensions: {original_width}x{original_height}")
+
+    if size_mode == "percentage":
+        if percentage > 0:
+            scale = percentage / 100
+        elif percentage < 0:
+            scale = (200 + percentage) / 100
+        else:
+            scale = 1
+
+        if scale <= 0:
+            raise ValueError("Percentage must be greater than -200")
+
+        return max(1, int(original_width * scale)), max(1, int(original_height * scale))
+
+    if target_width == 0 and target_height == 0:
+        target_width_final = original_width
+        target_height_final = original_height
+    elif target_width == 0:
+        target_width_final = int(target_height * original_width / original_height)
+        target_height_final = target_height
+    elif target_height == 0:
+        target_height_final = int(target_width * original_height / original_width)
+        target_width_final = target_width
+    else:
+        target_width_final = target_width
+        target_height_final = target_height
+
+    if target_width_final <= 0 or target_height_final <= 0:
+        raise ValueError(f"Calculated target dimensions are invalid: {target_width_final}x{target_height_final}")
+
+    return target_width_final, target_height_final
+
+
+def resize_image(input_path, output_path, target_width, target_height, prefix="", preferred_format="webp", quality=50, size_mode="fixed", percentage=100):
     """Resize an image with high quality preservation"""
     with Image.open(input_path) as img:
         # Convert to RGB if necessary
@@ -21,33 +58,9 @@ def resize_image(input_path, output_path, target_width, target_height, prefix=""
         if original_width <= 0 or original_height <= 0:
             raise ValueError(f"Input image has invalid dimensions: {original_width}x{original_height}")
         
-        # Calculate target dimensions
-        # If both are 0, use original size
-        if target_width == 0 and target_height == 0:
-            target_width_final = original_width
-            target_height_final = original_height
-        # If width is 0, calculate from height
-        elif target_width == 0:
-            if target_height <= 0:
-                raise ValueError("Height must be greater than 0 when width is 0")
-            target_width_final = int(target_height * original_width / original_height)
-            target_height_final = target_height
-        # If height is 0, calculate from width
-        elif target_height == 0:
-            if target_width <= 0:
-                raise ValueError("Width must be greater than 0 when height is 0")
-            target_height_final = int(target_width * original_height / original_width)
-            target_width_final = target_width
-        # Both specified
-        else:
-            if target_width <= 0 or target_height <= 0:
-                raise ValueError("Width and height must be greater than 0")
-            target_width_final = target_width
-            target_height_final = target_height
-        
-        # Validate target dimensions are positive
-        if target_width_final <= 0 or target_height_final <= 0:
-            raise ValueError(f"Calculated target dimensions are invalid: {target_width_final}x{target_height_final}")
+        target_width_final, target_height_final = calculate_target_dimensions(
+            original_width, original_height, target_width, target_height, size_mode, percentage
+        )
         
         # Resize using high-quality LANCZOS
         resized_img = img.resize((target_width_final, target_height_final), Image.Resampling.LANCZOS)

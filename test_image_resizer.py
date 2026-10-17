@@ -3,7 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 from PIL import Image
-from batch_resize import resize_image
+from batch_resize import calculate_target_dimensions, resize_image
 
 def test_image_creation():
     """Create a test image for processing"""
@@ -36,6 +36,33 @@ def test_image_creation():
         print(f"[OK] Original size: {result['original_size'][0]}x{result['original_size'][1]}")
         print(f"[OK] New size: {result['new_size'][0]}x{result['new_size'][1]}")
         print(f"[OK] File size: {result['file_size']} bytes")
+
+        # Signed percentage values preserve the original aspect ratio.
+        assert calculate_target_dimensions(200, 100, size_mode="percentage", percentage=150) == (300, 150)
+        assert calculate_target_dimensions(200, 100, size_mode="percentage", percentage=-150) == (100, 50)
+        try:
+            calculate_target_dimensions(200, 100, size_mode="percentage", percentage=-200)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("A percentage of -200 must be rejected")
+
+        percentage_result = resize_image(
+            test_image_path, temp_dir, target_width=0, target_height=0,
+            prefix="percentage_", preferred_format="png", size_mode="percentage", percentage=150
+        )
+        assert percentage_result['new_size'] == (150, 150), f"Percentage resize mismatch: {percentage_result['new_size']}"
+
+        landscape_path = os.path.join(temp_dir, "landscape.png")
+        Image.new('RGB', (200, 100), color='blue').save(landscape_path)
+        for percentage, expected_size in ((150, (300, 150)), (-150, (100, 50))):
+            result = resize_image(
+                landscape_path, temp_dir, target_width=0, target_height=0,
+                prefix=f"landscape_{percentage}_", preferred_format="png",
+                size_mode="percentage", percentage=percentage
+            )
+            assert result['new_size'] == expected_size, f"Unexpected dimensions for {percentage}%: {result['new_size']}"
+        print("[OK] Signed percentage and aspect ratio tests passed")
         
         # Test with different formats
         formats_to_test = ['webp', 'jpeg', 'png']

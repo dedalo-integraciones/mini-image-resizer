@@ -12,7 +12,9 @@ This is a lightweight Windows application for batch image resizing and format co
 - Real-time preview of selected images
 
 ### Image Processing
-- Smart resizing (maintain aspect ratio when one dimension is 0)
+- Fixed-size resizing by width and height, with automatic aspect ratio when one dimension is 0
+- Percentage resizing that scales width and height proportionally, preserving the original aspect ratio
+- Signed percentage values: `100` keeps the original size, `150` scales to 150% (+50%), and `-150` scales to 50% (-50%)
 - High-quality resampling using LANCZOS algorithm
 - Configurable quality settings for web optimization
 - Automatic filename generation with user-defined prefix
@@ -53,7 +55,7 @@ python main.py
 ### Configuration
 The application allows customization through the GUI:
 - **Image Selection**: Browse and select multiple image files
-- **Size Control**: Set width/height (use 0 for original size)
+- **Size Control**: Switch between fixed dimensions (width/height in pixels; use 0 to calculate that dimension automatically) and percentage scaling. In percentage mode, `100` keeps the original size, `150` enlarges it by 50%, and `-150` reduces it by 50%, always preserving aspect ratio.
 - **Prefix**: Add custom prefix to output filenames
 - **Format**: Choose output format (webp, jpeg, png)
 - **Location**: Specify save directory or use default
@@ -85,3 +87,6 @@ The application allows customization through the GUI:
 
 ## License
 This application is free to use for personal and commercial purposes.
+
+## Dédalo Integraciones
+[Visit Dédalo Integraciones](https://dedalointegraciones.vercel.app/)
