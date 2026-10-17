@@ -86,7 +86,9 @@ The application allows customization through the GUI:
 - Proper window management and event handling
 
 ## License
-This application is free to use for personal and commercial purposes.
+This project is distributed under the [MIT License](LICENSE), which permits personal and commercial use, modification, and redistribution subject to its terms.
+
+The visual assets in `assets/` are original works created by the project author and are included in this project under the MIT License.
 
 ## Dédalo Integraciones
 [Visit Dédalo Integraciones](https://dedalointegraciones.vercel.app/)
